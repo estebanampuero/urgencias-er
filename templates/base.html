@@ -33,6 +33,10 @@
     {% endif %}
     <li><a href="{{ url_for('historial') }}">Historial</a></li>
     <li><a href="{{ url_for('buscar') }}">Buscar</a></li>
+    {% set n_alertas = n_alertas_abiertas() %}
+    {% if n_alertas %}
+    <li><a href="{{ url_for('alertas_dashboard') }}" class="link-warn">⚠ Alertas <span class="menu-badge">{{ n_alertas }}</span></a></li>
+    {% endif %}
     {% if tiene_permiso('gestionar_usuarios') %}<li><a href="{{ url_for('usuarios') }}">Usuarios</a></li>{% endif %}
     {% if tiene_permiso('ver_auditoria') %}<li><a href="{{ url_for('auditoria') }}">Auditoría</a></li>{% endif %}
   </ul>

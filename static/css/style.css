@@ -560,6 +560,20 @@ details[open] > summary { background: rgba(0,122,255,.22); }
 .firma { text-align: center; font-size: .85em; color: var(--muted); }
 .firma .linea { border-top: 1px solid var(--ink); margin-bottom: 6px; height: 36px; }
 
+/* ===== Badge en menú (alertas) ===== */
+.menu-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  background: var(--danger);
+  color: #fff;
+  font-size: .72em;
+  font-weight: 700;
+  vertical-align: middle;
+  animation: alerta-pulse 1.8s ease-in-out infinite;
+}
+
 /* ===== Búsqueda semántica ===== */
 .search-results { list-style: none; padding: 0; margin: 16px 0 0; }
 .search-item {

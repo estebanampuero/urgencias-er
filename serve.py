@@ -14,6 +14,21 @@ from app import app, get_ip_local
 from database import init_db
 
 
+def _maybe_preload_stt():
+    """Pre-carga el modelo Whisper si PRELOAD_STT=true, para evitar
+    bloqueo de ~30s en el primer request del usuario."""
+    if os.environ.get("PRELOAD_STT", "").lower() not in ("1", "true", "yes"):
+        return
+    try:
+        import stt
+        if stt.available():
+            print("[stt] precargando modelo Whisper small (puede tardar ~30s)...", flush=True)
+            stt._ensure_model()
+            print("[stt] modelo listo en memoria.", flush=True)
+    except Exception as e:
+        print(f"[stt] preload falló: {e}", file=sys.stderr)
+
+
 def _maybe_seed_demo():
     """Sembrar datos demo si SEED_DEMO=true y la BD está vacía."""
     if os.environ.get("SEED_DEMO", "").lower() not in ("1", "true", "yes"):
@@ -35,6 +50,7 @@ def _maybe_seed_demo():
 def main():
     init_db()
     _maybe_seed_demo()
+    _maybe_preload_stt()
     port = int(os.environ.get("PORT", "5050"))
     threads = int(os.environ.get("THREADS", "8"))
     ip = get_ip_local()

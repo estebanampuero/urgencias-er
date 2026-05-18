@@ -9,14 +9,56 @@ import os
 import json
 import socket
 import tempfile
+import logging
+import sys as _sys
 from datetime import datetime, time as dtime
 from functools import wraps
+from typing import Optional
+
+
+# === Logging estructurado JSON (compatible con stdout de EasyPanel) ===
+class JsonFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        payload = {
+            "ts": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+            "level": record.levelname,
+            "logger": record.name,
+            "msg": record.getMessage(),
+        }
+        if record.exc_info:
+            payload["exc"] = self.formatException(record.exc_info)
+        for k, v in record.__dict__.items():
+            if k in ("args","asctime","created","exc_info","exc_text","filename",
+                     "funcName","levelname","levelno","lineno","message","module",
+                     "msecs","msg","name","pathname","process","processName",
+                     "relativeCreated","stack_info","thread","threadName"):
+                continue
+            payload[k] = v
+        return json.dumps(payload, ensure_ascii=False, default=str)
+
+
+def _setup_logging():
+    if os.environ.get("LOG_JSON", "true").lower() in ("0","false","no"):
+        return
+    root = logging.getLogger()
+    root.setLevel(os.environ.get("LOG_LEVEL", "INFO"))
+    h = logging.StreamHandler(_sys.stdout)
+    h.setFormatter(JsonFormatter())
+    # Reemplazar handlers existentes
+    root.handlers = [h]
+    # Silenciar logs ruidosos del access log de waitress
+    logging.getLogger("waitress.queue").setLevel(logging.WARNING)
+
+
+_setup_logging()
 
 from flask import (
     Flask, render_template, request, redirect, url_for,
     session, flash, jsonify, abort, g, send_file
 )
 from flask_wtf.csrf import CSRFProtect, generate_csrf
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 from database import init_db, get_conn
 
@@ -69,6 +111,15 @@ app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["WTF_CSRF_TIME_LIMIT"] = None  # mientras dura la sesión
 
 csrf = CSRFProtect(app)
+
+# Rate limiting (storage in-memory; en multi-replica usar Redis URL)
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["300 per minute", "5000 per hour"],
+    storage_uri=os.environ.get("LIMITER_STORAGE", "memory://"),
+    strategy="fixed-window",
+)
 
 
 @app.context_processor
@@ -139,17 +190,24 @@ def turno_actual_por_hora():
     return "dia" if dtime(8, 0) <= h < dtime(20, 0) else "noche"
 
 
+_ip_local_cache: Optional[str] = None
+
+
 def get_ip_local():
-    """IP en LAN para mostrar al iniciar."""
+    """IP en LAN para mostrar al iniciar. Cacheada — no se ejecuta por request."""
+    global _ip_local_cache
+    if _ip_local_cache is not None:
+        return _ip_local_cache
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
+        s.settimeout(0.5)
         s.connect(("10.255.255.255", 1))
-        ip = s.getsockname()[0]
+        _ip_local_cache = s.getsockname()[0]
     except Exception:
-        ip = "127.0.0.1"
+        _ip_local_cache = "127.0.0.1"
     finally:
         s.close()
-    return ip
+    return _ip_local_cache
 
 
 app.jinja_env.filters["fmt_dt"] = fmt_dt
@@ -278,6 +336,22 @@ def _asset_version():
         return 0
 
 
+def _n_alertas_abiertas() -> int:
+    if not g.get("usuario"):
+        return 0
+    try:
+        conn = get_conn()
+        n = conn.execute(
+            """SELECT COUNT(*) AS n FROM alertas_sv a
+               JOIN pacientes p ON p.id = a.paciente_id
+               WHERE a.reconocida = 0 AND p.estado = 'en_atencion'"""
+        ).fetchone()["n"]
+        conn.close()
+        return n
+    except Exception:
+        return 0
+
+
 @app.context_processor
 def inject_globals():
     return {
@@ -286,12 +360,14 @@ def inject_globals():
         "ip_local": get_ip_local(),
         "asset_v": _asset_version(),
         "tiene_permiso": tiene_permiso,
+        "n_alertas_abiertas": _n_alertas_abiertas,
     }
 
 
 # ---------- Rutas: Auth ----------
 
 @app.route("/login", methods=["GET", "POST"])
+@limiter.limit("10 per minute", methods=["POST"])
 def login():
     conn = get_conn()
     if request.method == "POST":
@@ -1066,6 +1142,25 @@ def buscar_reindex():
     return redirect(url_for("buscar"))
 
 
+@app.route("/alertas")
+@requiere_permiso("ver_alertas")
+def alertas_dashboard():
+    """Dashboard global de alertas SV del turno activo."""
+    conn = get_conn()
+    rows = conn.execute(
+        """SELECT a.*, p.nombre AS paciente_nombre, p.categoria_esi, p.box,
+                  p.estado AS paciente_estado
+           FROM alertas_sv a
+           JOIN pacientes p ON p.id = a.paciente_id
+           WHERE a.reconocida = 0 AND p.estado = 'en_atencion'
+           ORDER BY
+             CASE a.severidad WHEN 'critico' THEN 1 WHEN 'warn' THEN 2 ELSE 3 END,
+             a.id DESC"""
+    ).fetchall()
+    conn.close()
+    return render_template("alertas.html", alertas=rows)
+
+
 @app.route("/auditoria")
 @requiere_permiso("ver_auditoria")
 def auditoria():
@@ -1131,27 +1226,51 @@ def api_paciente(pid):
 
 
 @app.route("/healthz")
+@limiter.exempt
 def healthz():
-    """Healthcheck para monitoreo externo. Sin auth (estándar Kubernetes/NSSM)."""
+    """Healthcheck minimal sin auth (para Kubernetes/EasyPanel).
+    NO expone conteos ni info clínica. Para detalles usar /api/admin/status."""
     try:
         conn = get_conn()
-        n_users = conn.execute("SELECT COUNT(*) AS n FROM usuarios").fetchone()["n"]
-        n_pac = conn.execute("SELECT COUNT(*) AS n FROM pacientes").fetchone()["n"]
-        t_activo = conn.execute("SELECT 1 FROM turnos WHERE estado='activo' LIMIT 1").fetchone()
+        conn.execute("SELECT 1").fetchone()
         conn.close()
-        return jsonify({
-            "ok": True,
-            "db": {"usuarios": n_users, "pacientes": n_pac, "turno_activo": bool(t_activo)},
-            "stt": stt.status() if stt else {"available": False},
-            "version": "1.0.0",
-            "ts": ahora_iso(),
-        })
+        return jsonify({"ok": True, "version": "1.0.0"})
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
+        return jsonify({"ok": False, "error": "db unavailable"}), 500
+
+
+@app.route("/api/admin/status")
+@requiere_permiso("ver_auditoria")
+def api_admin_status():
+    """Status detallado del sistema. Solo admin."""
+    conn = get_conn()
+    n_users = conn.execute("SELECT COUNT(*) AS n FROM usuarios").fetchone()["n"]
+    n_pac = conn.execute("SELECT COUNT(*) AS n FROM pacientes").fetchone()["n"]
+    n_turnos = conn.execute("SELECT COUNT(*) AS n FROM turnos").fetchone()["n"]
+    t_activo = conn.execute("SELECT id FROM turnos WHERE estado='activo' LIMIT 1").fetchone()
+    n_alertas = conn.execute(
+        "SELECT COUNT(*) AS n FROM alertas_sv WHERE reconocida=0"
+    ).fetchone()["n"]
+    n_auditoria = conn.execute("SELECT COUNT(*) AS n FROM auditoria").fetchone()["n"]
+    conn.close()
+    return jsonify({
+        "ok": True,
+        "version": "1.0.0",
+        "db": {
+            "usuarios": n_users, "pacientes": n_pac, "turnos": n_turnos,
+            "turno_activo_id": t_activo["id"] if t_activo else None,
+            "alertas_abiertas": n_alertas,
+            "auditoria_entradas": n_auditoria,
+        },
+        "stt": stt.status() if stt else {"available": False},
+        "llm": llm.status() if llm else {"available": False},
+        "ts": ahora_iso(),
+    })
 
 
 @app.route("/api/sugerir-esi", methods=["POST"])
 @login_required
+@limiter.limit("60 per minute")
 def api_sugerir_esi():
     """Devuelve la categoría ESI sugerida + razones para los datos enviados."""
     data = request.get_json(silent=True) or request.form
@@ -1192,6 +1311,7 @@ def api_stt_status():
 
 @app.route("/api/transcribir", methods=["POST"])
 @login_required
+@limiter.limit("20 per minute; 200 per hour")
 def api_transcribir():
     if stt is None or not stt.available():
         return jsonify({"error": "STT no disponible (faster-whisper no instalado)"}), 503
@@ -1228,6 +1348,7 @@ def api_llm_status():
 
 @app.route("/api/llm/resumen-turno/<int:turno_id>", methods=["POST"])
 @login_required
+@limiter.limit("10 per hour")
 def api_llm_resumen(turno_id):
     """Genera resumen narrativo de la entrega del turno usando Claude."""
     if not llm or not llm.available():
@@ -1276,6 +1397,7 @@ def api_llm_resumen(turno_id):
 
 @app.route("/api/llm/triage/<int:pid>", methods=["POST"])
 @login_required
+@limiter.limit("30 per hour")
 def api_llm_triage(pid):
     """Segunda opinión LLM sobre la categorización ESI de un paciente."""
     if not llm or not llm.available():
@@ -1350,6 +1472,7 @@ def fhir_get_patient(pid):
 
 
 @app.route("/fhir/Observation", methods=["POST"])
+@limiter.limit("120 per minute")  # dispositivos pueden enviar varios SV/min
 def fhir_post_observation():
     """
     Endpoint para que dispositivos médicos publiquen SV vía FHIR Observation.

@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Alertas activas{% endblock %}
+{% block content %}
+<h2>Alertas activas del turno</h2>
+<p class="muted">
+  {{ alertas|length }} alerta(s) sin reconocer en pacientes actualmente en atención.
+  Ordenadas por severidad.
+</p>
+
+{% if not alertas %}
+  <div class="card empty">
+    <h3>✓ Sin alertas activas</h3>
+    <p>Todos los pacientes del turno tienen signos vitales estables.</p>
+  </div>
+{% else %}
+  {% for a in alertas %}
+  <div class="alerta alerta-{{ a.severidad }}">
+    <div class="alerta-body">
+      <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+        <span class="esi esi-{{ a.categoria_esi }}">{{ a.categoria_esi }}</span>
+        <a href="{{ url_for('paciente_detalle', pid=a.paciente_id) }}">
+          <b>{{ a.paciente_nombre }}</b>
+        </a>
+        {% if a.box %}<span class="muted small">Box {{ a.box }}</span>{% endif %}
+        <span class="alerta-tipo">{{ a.tipo|replace('_',' ') }}</span>
+      </div>
+      <div class="alerta-msg">{{ a.mensaje }}</div>
+      <span class="muted small">{{ a.creada_en|fmt_dt }}</span>
+    </div>
+    <form method="post" action="{{ url_for('alerta_reconocer', aid=a.id) }}" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-sm">Reconocer</button>
+    </form>
+  </div>
+  {% endfor %}
+{% endif %}
+{% endblock %}
