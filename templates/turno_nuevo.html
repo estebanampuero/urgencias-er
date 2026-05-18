@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Abrir turno · Urgencias{% endblock %}
+{% block content %}
+<h2>Abrir nuevo turno</h2>
+
+<form method="post" class="form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="form-row">
+    <label>Tipo de turno</label>
+    <div class="radio-group">
+      <label><input type="radio" name="tipo" value="dia"
+        {% if tipo_sugerido == 'dia' %}checked{% endif %} required> Día (08:00-20:00)</label>
+      <label><input type="radio" name="tipo" value="noche"
+        {% if tipo_sugerido == 'noche' %}checked{% endif %}> Noche (20:00-08:00)</label>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <label for="medico_jefe_id">Médico jefe</label>
+    <select name="medico_jefe_id" id="medico_jefe_id" required>
+      <option value="">— seleccionar —</option>
+      {% for m in medicos %}<option value="{{ m.id }}">{{ m.nombre }}</option>{% endfor %}
+    </select>
+  </div>
+
+  <div class="form-row">
+    <label for="eu_id">Enfermera/o (EU) responsable</label>
+    <select name="eu_id" id="eu_id" required>
+      <option value="">— seleccionar —</option>
+      {% for e in eus %}<option value="{{ e.id }}">{{ e.nombre }}</option>{% endfor %}
+    </select>
+  </div>
+
+  <div class="form-row">
+    <label>TENS del turno</label>
+    <div class="check-group">
+      {% for t in tens %}
+      <label><input type="checkbox" name="tens_ids" value="{{ t.id }}"> {{ t.nombre }}</label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="form-row">
+    <label for="notas_apertura">Notas de apertura (opcional)</label>
+    <textarea name="notas_apertura" id="notas_apertura" rows="3" data-stt="general"
+      placeholder="Estado al iniciar, eventos del turno anterior, recursos disponibles..."></textarea>
+  </div>
+
+  <div class="form-actions">
+    <a href="{{ url_for('dashboard') }}" class="btn">Cancelar</a>
+    <button type="submit" class="btn btn-primary">Abrir turno</button>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Usuarios{% endblock %}
+{% block content %}
+<h2>Usuarios</h2>
+
+<div class="cols-2">
+<section class="card">
+  <h3>Agregar usuario</h3>
+  <form method="post" class="form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-row"><label>Nombre *</label><input type="text" name="nombre" required></div>
+    <div class="form-row">
+      <label>Rol *</label>
+      <select name="rol" required>
+        <option value="medico">Médico</option>
+        <option value="eu">EU (Enfermera/o)</option>
+        <option value="tens">TENS</option>
+        <option value="admin">Admin</option>
+      </select>
+    </div>
+    <div class="form-row"><label>RUT</label><input type="text" name="rut"></div>
+    <button class="btn btn-primary">Crear</button>
+  </form>
+</section>
+
+<section class="card">
+  <h3>Listado</h3>
+  <div class="tbl-wrap">
+  <table class="tbl small">
+    <thead><tr><th>Nombre</th><th>Rol</th><th>RUT</th><th>Estado</th><th></th></tr></thead>
+    <tbody>
+    {% for u in usuarios %}
+      <tr {% if not u.activo %}class="muted"{% endif %}>
+        <td>{{ u.nombre }}</td>
+        <td><span class="rol rol-{{ u.rol }}">{{ u.rol|upper }}</span></td>
+        <td>{{ u.rut or '-' }}</td>
+        <td>{{ 'Activo' if u.activo else 'Inactivo' }}</td>
+        <td>
+          <form method="post" action="{{ url_for('usuario_toggle', uid=u.id) }}" class="inline">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-sm">{{ 'Desactivar' if u.activo else 'Activar' }}</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+</div>
+{% endblock %}

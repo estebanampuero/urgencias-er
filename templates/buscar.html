@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Buscar · Urgencias{% endblock %}
+{% block content %}
+<h2>Búsqueda semántica</h2>
+<p class="muted">Busca notas clínicas por contenido (similitud semántica TF-IDF).</p>
+
+<form method="get" class="form-inline" action="{{ url_for('buscar') }}">
+  <input type="text" name="q" value="{{ q }}" placeholder="dolor torácico, sospecha de IAM..."
+         style="flex:1; min-width:240px" autofocus>
+  <button class="btn btn-primary">Buscar</button>
+  {% if tiene_permiso('gestionar_usuarios') %}
+  <form method="post" action="{{ url_for('buscar_reindex') }}" class="inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn btn-sm" title="Reconstruir el índice de búsqueda">Reindexar</button>
+  </form>
+  {% endif %}
+</form>
+
+{% if q and not resultados %}
+  <p class="muted">Sin resultados para «{{ q }}». Probá con menos palabras o más generales.</p>
+{% elif resultados %}
+  <p class="muted">{{ resultados|length }} resultado(s) ordenados por relevancia.</p>
+  <ul class="search-results">
+    {% for r in resultados %}
+    <li class="search-item">
+      <div class="search-head">
+        <span class="esi esi-{{ r.categoria_esi }}">{{ r.categoria_esi }}</span>
+        <a href="{{ url_for('paciente_detalle', pid=r.paciente_id) }}"><b>{{ r.paciente_nombre }}</b></a>
+        <span class="muted small">· {{ r.creado_en|fmt_dt }}</span>
+        <span class="search-score">{{ "%.0f"|format(r.score * 100) }}%</span>
+      </div>
+      <div class="search-body">{{ r.contenido }}</div>
+    </li>
+    {% endfor %}
+  </ul>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,30 @@
+# Datos y BD (no versionar)
+data/
+data/whisper-cache/
+data/backups/
+
+# Python portable Windows
+python/
+
+# Caches
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Entornos virtuales
+.venv/
+venv/
+env/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editores
+.vscode/
+.idea/
+*.swp
+
+# Logs
+*.log

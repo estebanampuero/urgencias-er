@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Auditoría{% endblock %}
+{% block content %}
+<h2>Registro de auditoría</h2>
+<p class="muted">Últimas 200 acciones. Inmutable (read-only).</p>
+
+{% if not entradas %}
+  <p class="muted">Sin entradas.</p>
+{% else %}
+<div class="tbl-wrap">
+<table class="tbl">
+  <thead>
+    <tr><th>Cuando</th><th>Actor</th><th>Acción</th><th>Recurso</th><th>ID</th><th>Detalle</th><th>IP</th></tr>
+  </thead>
+  <tbody>
+    {% for e in entradas %}
+    <tr>
+      <td><span class="muted small">{{ e.ts|fmt_dt }}</span></td>
+      <td>{{ e.actor_nombre or '—' }} {% if e.actor_rol %}<span class="rol rol-{{ e.actor_rol }}">{{ e.actor_rol|upper }}</span>{% endif %}</td>
+      <td><b>{{ e.accion }}</b></td>
+      <td>{{ e.recurso }}</td>
+      <td>{{ e.recurso_id or '-' }}</td>
+      <td class="pre">{{ e.detalle or '' }}</td>
+      <td class="muted small">{{ e.ip or '-' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+{% endblock %}

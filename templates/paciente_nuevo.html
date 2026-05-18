@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Registrar paciente{% endblock %}
+{% block content %}
+<h2>Registrar paciente</h2>
+
+<form method="post" class="form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <fieldset>
+    <legend>Identificación</legend>
+    <div class="grid-2">
+      <div class="form-row">
+        <label>Nombre completo *</label>
+        <input type="text" name="nombre" required autofocus>
+      </div>
+      <div class="form-row">
+        <label>RUT</label>
+        <input type="text" name="rut" placeholder="12.345.678-9">
+      </div>
+      <div class="form-row">
+        <label>Edad</label>
+        <input type="number" name="edad" min="0" max="120">
+      </div>
+      <div class="form-row">
+        <label>Sexo</label>
+        <select name="sexo">
+          <option value="">—</option>
+          <option value="M">Masculino</option>
+          <option value="F">Femenino</option>
+          <option value="O">Otro</option>
+        </select>
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Categorización ESI · Box</legend>
+    <div class="grid-2">
+      <div class="form-row">
+        <label>Categoría ESI *</label>
+        <div class="esi-picker" id="esiPicker">
+          {% for c, txt in [('C1','C1 · Resucitación'),('C2','C2 · Emergencia'),('C3','C3 · Urgencia'),('C4','C4 · Menor'),('C5','C5 · No urgente')] %}
+            <label class="esi-opt esi-{{ c }}">
+              <input type="radio" name="categoria_esi" value="{{ c }}" required>
+              <span>{{ txt }}</span>
+            </label>
+          {% endfor %}
+        </div>
+        <div class="esi-hint" id="esiHint" data-stt-host>
+          <span>Sugerencia del sistema:</span>
+          <span class="esi" id="esiHintCat"></span>
+          <span class="esi-hint-razon" id="esiHintRazon"></span>
+          <button type="button" class="esi-hint-apply" id="esiHintApply">Usar sugerencia</button>
+        </div>
+      </div>
+      <div class="form-row">
+        <label>Box / Ubicación</label>
+        <input type="text" name="box" placeholder="Box 3, Reanimación...">
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Motivo y antecedentes</legend>
+    <div class="form-row">
+      <label>Motivo de consulta *</label>
+      <textarea name="motivo_consulta" rows="2" required data-stt="motivo"></textarea>
+    </div>
+    <div class="grid-2">
+      <div class="form-row">
+        <label>Antecedentes</label>
+        <textarea name="antecedentes" rows="3" data-stt="antecedentes"
+          placeholder="HTA, DM2, cirugías previas, medicamentos..."></textarea>
+      </div>
+      <div class="form-row">
+        <label>Alergias</label>
+        <textarea name="alergias" rows="3" data-stt="alergias"
+          placeholder="Penicilina, AINEs, látex... o 'NKDA'"></textarea>
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Signos vitales de ingreso</legend>
+    <div class="sv-grid">
+      <div class="form-row"><label>PA</label><input type="text" name="pa" placeholder="120/80"></div>
+      <div class="form-row"><label>FC</label><input type="number" name="fc" min="0" max="300"></div>
+      <div class="form-row"><label>FR</label><input type="number" name="fr" min="0" max="80"></div>
+      <div class="form-row"><label>T°</label><input type="number" step="0.1" name="temp" min="25" max="45"></div>
+      <div class="form-row"><label>SatO₂</label><input type="number" name="sato2" min="0" max="100"></div>
+      <div class="form-row"><label>Glasgow</label><input type="number" name="glasgow" min="3" max="15"></div>
+      <div class="form-row"><label>HGT</label><input type="number" name="hgt" min="0" max="800"></div>
+    </div>
+  </fieldset>
+
+  <div class="form-actions">
+    <a href="{{ url_for('dashboard') }}" class="btn">Cancelar</a>
+    <button type="submit" name="guardar_y_otro" value="1" class="btn">Guardar y agregar otro</button>
+    <button type="submit" class="btn btn-primary">Registrar y abrir ficha</button>
+  </div>
+</form>
+{% endblock %}

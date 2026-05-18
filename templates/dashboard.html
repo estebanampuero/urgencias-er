@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · Urgencias{% endblock %}
+{% block content %}
+
+{% if not turno %}
+  <div class="card empty">
+    <h2>No hay turno activo</h2>
+    <p>Para empezar a registrar pacientes debes abrir un turno.</p>
+    <a href="{{ url_for('turno_nuevo') }}" class="btn btn-primary">Abrir turno</a>
+  </div>
+{% else %}
+
+<div class="turno-header">
+  <div>
+    <h2>Turno {{ 'DÍA' if turno.tipo == 'dia' else 'NOCHE' }}
+        <span class="badge badge-{{ turno.tipo }}">{{ turno.tipo|upper }}</span></h2>
+    <p class="muted">Iniciado {{ turno.fecha_inicio|fmt_dt }} · activo hace {{ turno.fecha_inicio|transcurrido }}</p>
+  </div>
+  <div class="turno-actions">
+    <a href="{{ url_for('paciente_nuevo') }}" class="btn btn-primary">+ Registrar paciente</a>
+    <a href="{{ url_for('entrega_turno', turno_id=turno.id) }}" class="btn">Vista entrega</a>
+  </div>
+</div>
+
+<div class="stats-grid">
+  <div class="stat"><span class="n">{{ stats.total }}</span><span class="l">Pacientes</span></div>
+  <div class="stat"><span class="n">{{ stats.en_atencion }}</span><span class="l">En atención</span></div>
+  <div class="stat"><span class="n">{{ stats.alta }}</span><span class="l">Altas</span></div>
+  <div class="stat"><span class="n">{{ stats.hospitalizado }}</span><span class="l">Hospitalizados</span></div>
+  <div class="stat"><span class="n">{{ stats.pendientes_abiertos }}</span><span class="l">Pendientes abiertos</span></div>
+</div>
+
+<div class="esi-row">
+  <div class="esi esi-C1"><span>C1</span><b>{{ stats.c1 }}</b></div>
+  <div class="esi esi-C2"><span>C2</span><b>{{ stats.c2 }}</b></div>
+  <div class="esi esi-C3"><span>C3</span><b>{{ stats.c3 }}</b></div>
+  <div class="esi esi-C4"><span>C4</span><b>{{ stats.c4 }}</b></div>
+  <div class="esi esi-C5"><span>C5</span><b>{{ stats.c5 }}</b></div>
+</div>
+
+<h3>Pacientes del turno</h3>
+
+{% if not pacientes %}
+  <p class="muted">Aún no hay pacientes registrados en este turno.</p>
+{% else %}
+<div class="tbl-wrap">
+<table class="tbl">
+  <thead>
+    <tr>
+      <th>ESI</th><th>Box</th><th>Nombre</th><th>Edad</th>
+      <th>Motivo</th><th>Estado</th><th>Ingreso</th><th>Tiempo</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for p in pacientes %}
+    <tr class="row-esi-{{ p.categoria_esi }} row-{{ p.estado }}{% if p.recibido %} row-recibido{% endif %}">
+      <td><span class="esi esi-{{ p.categoria_esi }}">{{ p.categoria_esi }}</span></td>
+      <td>{{ p.box or '-' }}</td>
+      <td>
+        <a href="{{ url_for('paciente_detalle', pid=p.id) }}"><b>{{ p.nombre }}</b></a>
+        {% if p.recibido %}<span class="badge-recibido" title="Recibido del turno anterior">⇄ recibido</span>{% endif %}
+      </td>
+      <td>{{ p.edad or '-' }}{% if p.sexo %} · {{ p.sexo }}{% endif %}</td>
+      <td class="motivo">{{ p.motivo_consulta or '-' }}</td>
+      <td><span class="estado est-{{ p.estado }}">{{ p.estado|replace('_',' ') }}</span></td>
+      <td>{{ p.ingreso|fmt_hora }}</td>
+      <td>{{ p.ingreso|transcurrido }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}

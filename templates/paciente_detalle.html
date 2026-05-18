@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+{% block title %}{{ p.nombre }} · Paciente{% endblock %}
+{% block content %}
+
+<div class="pac-header">
+  <div>
+    <h2>
+      <span class="esi esi-{{ p.categoria_esi }}">{{ p.categoria_esi }}</span>
+      {{ p.nombre }}
+    </h2>
+    <p class="muted">
+      {% if p.rut %}{{ p.rut }} · {% endif %}
+      {% if p.edad %}{{ p.edad }} años{% endif %}
+      {% if p.sexo %} · {{ p.sexo }}{% endif %}
+      {% if p.box %} · Box <b>{{ p.box }}</b>{% endif %}
+      · Ingreso {{ p.ingreso|fmt_dt }} ({{ p.ingreso|transcurrido }})
+    </p>
+    <p>
+      <span class="estado est-{{ p.estado }}">{{ p.estado|replace('_',' ') }}</span>
+      {% if p.egreso %}<span class="muted">· egreso {{ p.egreso|fmt_dt }}</span>{% endif %}
+    </p>
+  </div>
+</div>
+
+{% if alertas_abiertas %}
+<div class="alertas-panel">
+  <h3 class="alertas-title">⚠ Alertas activas ({{ alertas_abiertas|length }})</h3>
+  {% for a in alertas_abiertas %}
+    <div class="alerta alerta-{{ a.severidad }}">
+      <div class="alerta-body">
+        <span class="alerta-tipo">{{ a.tipo|replace('_',' ') }}</span>
+        <span class="alerta-msg">{{ a.mensaje }}</span>
+        <span class="muted small">{{ a.creada_en|fmt_dt }}</span>
+      </div>
+      <form method="post" action="{{ url_for('alerta_reconocer', aid=a.id) }}" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-sm">Reconocer</button>
+      </form>
+    </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if p.esi_sugerido %}
+  {% if p.esi_sugerido != p.categoria_esi %}
+  <div class="esi-suggest-banner esi-suggest-diff">
+    <div class="esi-suggest-head">
+      <span class="esi-suggest-label">⓵ Sugerencia del sistema</span>
+      <span>Categoría sugerida:
+        <span class="esi esi-{{ p.esi_sugerido }}">{{ p.esi_sugerido }}</span>
+        <span class="muted small">(actual: <span class="esi esi-{{ p.categoria_esi }}">{{ p.categoria_esi }}</span>)</span>
+      </span>
+    </div>
+    {% if esi_razones %}
+    <ul class="esi-suggest-razones">
+      {% for r in esi_razones %}<li>{{ r }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    <div class="esi-suggest-acciones">
+      <form method="post" action="{{ url_for('paciente_aceptar_esi', pid=p.id) }}" class="inline">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-primary btn-sm">Aceptar sugerencia ({{ p.esi_sugerido }})</button>
+      </form>
+      <a href="{{ url_for('paciente_editar', pid=p.id) }}" class="btn btn-sm">Cambiar manualmente</a>
+    </div>
+  </div>
+  {% else %}
+  <div class="esi-suggest-banner esi-suggest-ok">
+    <span class="esi-suggest-label">✓ Categorización confirmada por el sistema</span>
+    {% if esi_razones %}
+    <details>
+      <summary>Ver razones</summary>
+      <ul class="esi-suggest-razones">
+        {% for r in esi_razones %}<li>{{ r }}</li>{% endfor %}
+      </ul>
+    </details>
+    {% endif %}
+  </div>
+  {% endif %}
+{% endif %}
+
+<div class="pac-actions pac-actions-row">
+  <a href="{{ url_for('paciente_nuevo') }}" class="btn btn-primary">+ Otro paciente</a>
+  <a href="{{ url_for('paciente_editar', pid=p.id) }}" class="btn">Editar datos</a>
+  <form method="post" action="{{ url_for('paciente_cambiar_estado', pid=p.id) }}" class="inline">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <select name="estado">
+      <option value="en_atencion" {% if p.estado=='en_atencion' %}selected{% endif %}>En atención</option>
+      <option value="alta" {% if p.estado=='alta' %}selected{% endif %}>Alta</option>
+      <option value="hospitalizado" {% if p.estado=='hospitalizado' %}selected{% endif %}>Hospitalizado</option>
+      <option value="traslado" {% if p.estado=='traslado' %}selected{% endif %}>Traslado</option>
+      <option value="fugado" {% if p.estado=='fugado' %}selected{% endif %}>Fugado</option>
+      <option value="fallecido" {% if p.estado=='fallecido' %}selected{% endif %}>Fallecido</option>
+    </select>
+    <button class="btn">Actualizar estado</button>
+  </form>
+</div>
+
+<div class="cols-2">
+
+  <section class="card">
+    <h3>Motivo de consulta</h3>
+    <p>{{ p.motivo_consulta or '—' }}</p>
+
+    <h3>Antecedentes</h3>
+    <p class="pre">{{ p.antecedentes or '—' }}</p>
+
+    <h3>Alergias</h3>
+    <p class="pre alergia">{{ p.alergias or 'No registradas' }}</p>
+  </section>
+
+  <section class="card">
+    <h3>Signos vitales actuales</h3>
+    <div class="sv-actuales">
+      <div><span>PA</span><b>{{ p.pa or '—' }}</b></div>
+      <div><span>FC</span><b>{{ p.fc or '—' }}</b></div>
+      <div><span>FR</span><b>{{ p.fr or '—' }}</b></div>
+      <div><span>T°</span><b>{{ p.temp or '—' }}</b></div>
+      <div><span>SatO₂</span><b>{{ p.sato2 or '—' }}</b></div>
+      <div><span>Glasgow</span><b>{{ p.glasgow or '—' }}</b></div>
+      <div><span>HGT</span><b>{{ p.hgt or '—' }}</b></div>
+    </div>
+
+    <details>
+      <summary>+ Registrar toma de signos vitales</summary>
+      <form method="post" action="{{ url_for('signos_agregar', pid=p.id) }}" class="form sv-grid">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-row"><label>PA</label><input type="text" name="pa" placeholder="120/80"></div>
+        <div class="form-row"><label>FC</label><input type="number" name="fc"></div>
+        <div class="form-row"><label>FR</label><input type="number" name="fr"></div>
+        <div class="form-row"><label>T°</label><input type="number" step="0.1" name="temp"></div>
+        <div class="form-row"><label>SatO₂</label><input type="number" name="sato2"></div>
+        <div class="form-row"><label>Glasgow</label><input type="number" name="glasgow"></div>
+        <div class="form-row"><label>HGT</label><input type="number" name="hgt"></div>
+        <div class="form-row"><label>EVA</label><input type="number" name="eva" min="0" max="10"></div>
+        <button class="btn btn-primary">Guardar</button>
+      </form>
+    </details>
+
+    {% if signos %}
+    <details>
+      <summary>Historial de tomas ({{ signos|length }})</summary>
+      <div class="tbl-wrap">
+      <table class="tbl small">
+        <thead><tr><th>Hora</th><th>PA</th><th>FC</th><th>FR</th><th>T°</th><th>SatO₂</th><th>GCS</th><th>HGT</th><th>EVA</th><th>Autor</th></tr></thead>
+        <tbody>
+        {% for s in signos %}
+          <tr>
+            <td>{{ s.creado_en|fmt_hora }}</td>
+            <td>{{ s.pa or '-' }}</td><td>{{ s.fc or '-' }}</td><td>{{ s.fr or '-' }}</td>
+            <td>{{ s.temp or '-' }}</td><td>{{ s.sato2 or '-' }}</td>
+            <td>{{ s.glasgow or '-' }}</td><td>{{ s.hgt or '-' }}</td>
+            <td>{{ s.eva or '-' }}</td>
+            <td class="muted">{{ s.autor_nombre or '-' }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </details>
+    {% endif %}
+  </section>
+
+</div>
+
+<div class="cols-2">
+  <section class="card">
+    <h3>Pendientes</h3>
+    <form method="post" action="{{ url_for('pendiente_agregar', pid=p.id) }}" class="form-inline">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <select name="tipo">
+        <option value="examen">Examen</option>
+        <option value="interconsulta">Interconsulta</option>
+        <option value="traslado">Traslado</option>
+        <option value="medicamento">Medicamento</option>
+        <option value="otro">Otro</option>
+      </select>
+      <input type="text" name="descripcion" placeholder="Descripción del pendiente..." required style="flex:1" data-stt="pendiente">
+      <button class="btn btn-primary">Agregar</button>
+    </form>
+
+    {% if pendientes %}
+    <ul class="pendientes">
+      {% for pe in pendientes %}
+      <li class="pen pen-{{ pe.estado }}">
+        <span class="pen-tipo">{{ pe.tipo }}</span>
+        <span class="pen-desc">{{ pe.descripcion }}</span>
+        <form method="post" action="{{ url_for('pendiente_cambiar', peid=pe.id) }}" class="inline">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <select name="estado">
+            <option value="pendiente" {% if pe.estado=='pendiente' %}selected{% endif %}>Pendiente</option>
+            <option value="en_curso" {% if pe.estado=='en_curso' %}selected{% endif %}>En curso</option>
+            <option value="completado" {% if pe.estado=='completado' %}selected{% endif %}>Completado</option>
+            <option value="cancelado" {% if pe.estado=='cancelado' %}selected{% endif %}>Cancelado</option>
+          </select>
+          <button class="btn btn-sm">OK</button>
+        </form>
+        <span class="muted small">{{ pe.creado_en|fmt_hora }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+      <p class="muted">Sin pendientes.</p>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h3>Notas clínicas</h3>
+    <form method="post" action="{{ url_for('nota_agregar', pid=p.id) }}" class="form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <textarea name="contenido" rows="3" placeholder="Evolución, hallazgos, indicaciones..." required data-stt="nota"></textarea>
+      <button class="btn btn-primary">Agregar nota</button>
+    </form>
+
+    {% if notas %}
+    <ul class="notas">
+      {% for n in notas %}
+      <li>
+        <div class="nota-head">
+          <b>{{ n.autor_nombre or 'Sistema' }}</b>
+          <span class="rol rol-{{ n.autor_rol or 'admin' }}">{{ (n.autor_rol or '')|upper }}</span>
+          <span class="muted">{{ n.creado_en|fmt_dt }}</span>
+        </div>
+        <div class="nota-body">{{ n.contenido }}</div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+      <p class="muted">Sin notas clínicas registradas.</p>
+    {% endif %}
+  </section>
+</div>
+
+{% endblock %}

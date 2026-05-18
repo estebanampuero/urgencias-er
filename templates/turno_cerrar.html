@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Cerrar turno{% endblock %}
+{% block content %}
+<h2>Cerrar turno</h2>
+
+<div class="card warn">
+  <p><b>Turno {{ turno.tipo|upper }}</b> · iniciado {{ turno.fecha_inicio|fmt_dt }}</p>
+  <ul>
+    <li><b>{{ pacientes_activos }}</b> paciente(s) aún en atención (quedarán para el turno siguiente).</li>
+    <li><b>{{ pendientes }}</b> pendiente(s) abierto(s) (se incluirán en la entrega).</li>
+  </ul>
+</div>
+
+<form method="post" class="form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="form-row">
+    <label for="notas_cierre">Notas de cierre / entrega</label>
+    <textarea name="notas_cierre" id="notas_cierre" rows="6" required data-stt="cierre"
+      placeholder="Resumen general, eventos relevantes, indicaciones para el turno entrante..."></textarea>
+  </div>
+  <div class="form-actions">
+    <a href="{{ url_for('dashboard') }}" class="btn">Cancelar</a>
+    <button type="submit" class="btn btn-danger"
+      onclick="return confirm('¿Cerrar el turno definitivamente?')">Cerrar turno</button>
+  </div>
+</form>
+{% endblock %}

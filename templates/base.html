@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+<title>{% block title %}Urgencias - Entrega de Turno{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ asset_v }}">
+</head>
+<body>
+{% if usuario %}
+<button class="fab-menu" id="fabMenu" type="button" aria-label="Menú de navegación" aria-expanded="false">
+  <svg class="fab-icon-open" viewBox="0 0 24 24" width="26" height="26" fill="currentColor" aria-hidden="true">
+    <path d="M9 2a1 1 0 0 0-1 1v5H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h5v5a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-5h5a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1h-5V3a1 1 0 0 0-1-1H9z"/>
+  </svg>
+  <svg class="fab-icon-close" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+    <path d="M6 6 L18 18 M18 6 L6 18"/>
+  </svg>
+</button>
+
+<nav class="topbar">
+  <div class="brand">
+    <a href="{{ url_for('dashboard') }}">URGENCIAS</a>
+  </div>
+  <ul class="menu">
+    <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
+    {% if turno_activo %}
+      <li><a href="{{ url_for('paciente_nuevo') }}">+ Paciente</a></li>
+      <li><a href="{{ url_for('entrega_turno', turno_id=turno_activo.id) }}">Entrega</a></li>
+      <li><a href="{{ url_for('turno_cerrar', turno_id=turno_activo.id) }}" class="link-warn">Cerrar turno</a></li>
+    {% else %}
+      <li><a href="{{ url_for('turno_nuevo') }}" class="link-ok">Abrir turno</a></li>
+    {% endif %}
+    <li><a href="{{ url_for('historial') }}">Historial</a></li>
+    <li><a href="{{ url_for('buscar') }}">Buscar</a></li>
+    {% if tiene_permiso('gestionar_usuarios') %}<li><a href="{{ url_for('usuarios') }}">Usuarios</a></li>{% endif %}
+    {% if tiene_permiso('ver_auditoria') %}<li><a href="{{ url_for('auditoria') }}">Auditoría</a></li>{% endif %}
+  </ul>
+  <div class="user-chip">
+    <span class="rol rol-{{ usuario.rol }}">{{ usuario.rol|upper }}</span>
+    <span>{{ usuario.nombre }}</span>
+    <a href="{{ url_for('logout') }}" class="logout">Salir</a>
+  </div>
+</nav>
+{% endif %}
+
+{% with msgs = get_flashed_messages(with_categories=true) %}
+  {% if msgs %}
+    <div class="flashes">
+      {% for cat, m in msgs %}
+        <div class="flash flash-{{ cat }}">{{ m }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}
+
+<main class="container">
+{% block content %}{% endblock %}
+</main>
+
+<footer class="footer">
+  <span>LAN: <code>http://{{ ip_local }}:5000</code></span>
+  <span>· SEIS: pendiente integración HL7</span>
+</footer>
+
+<script src="{{ url_for('static', filename='js/app.js') }}?v={{ asset_v }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

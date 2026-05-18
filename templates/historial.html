@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Historial de turnos{% endblock %}
+{% block content %}
+<h2>Historial de turnos cerrados</h2>
+
+{% if not turnos %}
+  <p class="muted">No hay turnos cerrados todavía.</p>
+{% else %}
+<div class="tbl-wrap">
+<table class="tbl">
+  <thead>
+    <tr>
+      <th>Fecha cierre</th><th>Tipo</th><th>Médico jefe</th><th>EU</th>
+      <th>Pacientes</th><th>Inicio</th><th>Cierre</th><th></th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for t in turnos %}
+    <tr>
+      <td>{{ t.fecha_cierre|fmt_fecha }}</td>
+      <td><span class="badge badge-{{ t.tipo }}">{{ t.tipo|upper }}</span></td>
+      <td>{{ t.medico_nombre or '—' }}</td>
+      <td>{{ t.eu_nombre or '—' }}</td>
+      <td><b>{{ t.n_pacientes }}</b></td>
+      <td>{{ t.fecha_inicio|fmt_hora }}</td>
+      <td>{{ t.fecha_cierre|fmt_hora }}</td>
+      <td><a href="{{ url_for('entrega_turno', turno_id=t.id) }}" class="btn btn-sm">Ver entrega</a></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+{% endblock %}

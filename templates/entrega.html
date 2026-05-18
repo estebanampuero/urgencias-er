@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block title %}Entrega de turno{% endblock %}
+{% block content %}
+
+<div class="entrega-toolbar no-print">
+  <h2>Entrega de turno</h2>
+  <div>
+    <a href="{{ url_for('dashboard') }}" class="btn">Volver</a>
+    <a href="{{ url_for('entrega_turno_pdf', turno_id=turno.id) }}" class="btn">Descargar PDF</a>
+    <button onclick="window.print()" class="btn btn-primary">Imprimir</button>
+  </div>
+</div>
+
+<article class="entrega print-area">
+  <header class="entrega-head">
+    <h1>SERVICIO DE URGENCIAS — ENTREGA DE TURNO</h1>
+    <div class="meta">
+      <div>
+        <b>Turno:</b> {{ turno.tipo|upper }}
+        ({{ '08:00-20:00' if turno.tipo=='dia' else '20:00-08:00' }})<br>
+        <b>Inicio:</b> {{ turno.fecha_inicio|fmt_dt }}<br>
+        <b>Cierre:</b> {{ turno.fecha_cierre|fmt_dt if turno.fecha_cierre else '(turno activo)' }}
+      </div>
+      <div>
+        <b>Médico jefe:</b> {{ medico.nombre if medico else '—' }}<br>
+        <b>EU responsable:</b> {{ eu.nombre if eu else '—' }}<br>
+        <b>TENS:</b> {% if tens_list %}{{ tens_list|map(attribute='nombre')|join(', ') }}{% else %}—{% endif %}
+      </div>
+      <div>
+        <b>Generado:</b> {{ generado_en|fmt_dt }}
+      </div>
+    </div>
+  </header>
+
+  <section class="entrega-stats">
+    <div><b>{{ stats.total }}</b> pacientes</div>
+    <div><b>{{ stats.en_atencion }}</b> en atención</div>
+    <div><b>{{ stats.alta }}</b> altas</div>
+    <div><b>{{ stats.hosp }}</b> hospitalizados</div>
+    <div><b>{{ stats.traslado }}</b> traslados</div>
+    <div><b>{{ stats.fallecido }}</b> fallecidos</div>
+    <div class="esi-mini">
+      <span class="esi esi-C1">C1:{{ stats.c1 }}</span>
+      <span class="esi esi-C2">C2:{{ stats.c2 }}</span>
+      <span class="esi esi-C3">C3:{{ stats.c3 }}</span>
+      <span class="esi esi-C4">C4:{{ stats.c4 }}</span>
+      <span class="esi esi-C5">C5:{{ stats.c5 }}</span>
+    </div>
+  </section>
+
+  {% if turno.notas_apertura %}
+  <section>
+    <h3>Notas de apertura</h3>
+    <p class="pre">{{ turno.notas_apertura }}</p>
+  </section>
+  {% endif %}
+
+  <section>
+    <h3>Pacientes en atención ({{ stats.en_atencion }})</h3>
+    {% set hay_activos = false %}
+    {% for p in pacientes if p.estado == 'en_atencion' %}
+      {% set hay_activos = true %}
+      {% set d = detalle[p.id] %}
+      <div class="paciente-entrega esi-border-{{ p.categoria_esi }}{% if p.recibido %} pe-recibido{% endif %}">
+        <div class="pe-head">
+          <span class="esi esi-{{ p.categoria_esi }}">{{ p.categoria_esi }}</span>
+          <b>{{ p.nombre }}</b>
+          {% if p.recibido %}<span class="badge-recibido">⇄ recibido del turno anterior</span>{% endif %}
+          <span class="muted">
+            {% if p.edad %}{{ p.edad }}a{% endif %}{% if p.sexo %} {{ p.sexo }}{% endif %}
+            {% if p.rut %} · {{ p.rut }}{% endif %}
+            {% if p.box %} · Box {{ p.box }}{% endif %}
+            · ingreso {{ p.ingreso|fmt_hora }} ({{ p.ingreso|transcurrido }})
+          </span>
+        </div>
+        <div class="pe-body">
+          <div><b>Motivo:</b> {{ p.motivo_consulta or '—' }}</div>
+          {% if p.antecedentes %}<div><b>Antecedentes:</b> {{ p.antecedentes }}</div>{% endif %}
+          {% if p.alergias %}<div><b>Alergias:</b> {{ p.alergias }}</div>{% endif %}
+
+          {% if d.sv %}
+          <div class="sv-line">
+            <b>SV ({{ d.sv.creado_en|fmt_hora }}):</b>
+            PA {{ d.sv.pa or '-' }} · FC {{ d.sv.fc or '-' }} · FR {{ d.sv.fr or '-' }}
+            · T° {{ d.sv.temp or '-' }} · SatO₂ {{ d.sv.sato2 or '-' }}%
+            {% if d.sv.glasgow %} · GCS {{ d.sv.glasgow }}{% endif %}
+            {% if d.sv.hgt %} · HGT {{ d.sv.hgt }}{% endif %}
+          </div>
+          {% endif %}
+
+          {% if d.pendientes %}
+          <div class="pe-pendientes">
+            <b>Pendientes:</b>
+            <ul>
+              {% for pe in d.pendientes %}
+                <li><span class="tag">{{ pe.tipo }}</span> {{ pe.descripcion }}
+                    <span class="muted">({{ pe.estado }})</span></li>
+              {% endfor %}
+            </ul>
+          </div>
+          {% endif %}
+
+          {% if d.notas %}
+          <div class="pe-notas">
+            <b>Últimas notas:</b>
+            {% for n in d.notas %}
+              <div class="nota-mini">
+                <span class="muted">{{ n.creado_en|fmt_hora }} · {{ n.autor_nombre or '—' }}:</span>
+                {{ n.contenido }}
+              </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+    {% if not hay_activos %}<p class="muted">Sin pacientes en atención.</p>{% endif %}
+  </section>
+
+  <section class="page-break">
+    <h3>Pacientes resueltos en el turno</h3>
+    {% set hay_resueltos = false %}
+    <div class="tbl-wrap">
+    <table class="tbl">
+      <thead><tr><th>ESI</th><th>Paciente</th><th>Edad</th><th>Motivo</th><th>Destino</th><th>Ingreso</th><th>Egreso</th></tr></thead>
+      <tbody>
+      {% for p in pacientes if p.estado != 'en_atencion' %}
+        {% set hay_resueltos = true %}
+        <tr>
+          <td><span class="esi esi-{{ p.categoria_esi }}">{{ p.categoria_esi }}</span></td>
+          <td><b>{{ p.nombre }}</b>{% if p.rut %}<br><span class="muted small">{{ p.rut }}</span>{% endif %}</td>
+          <td>{{ p.edad or '-' }}</td>
+          <td>{{ p.motivo_consulta or '-' }}</td>
+          <td><span class="estado est-{{ p.estado }}">{{ p.estado|replace('_',' ') }}</span></td>
+          <td>{{ p.ingreso|fmt_hora }}</td>
+          <td>{{ p.egreso|fmt_hora if p.egreso else '-' }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% if not hay_resueltos %}<p class="muted">Sin altas, hospitalizaciones ni traslados en este turno.</p>{% endif %}
+  </section>
+
+  {% if turno.notas_cierre %}
+  <section>
+    <h3>Notas de cierre</h3>
+    <p class="pre">{{ turno.notas_cierre }}</p>
+  </section>
+  {% endif %}
+
+  <footer class="entrega-foot">
+    <div class="firma">
+      <div class="linea"></div>
+      <span>Médico saliente: {{ medico.nombre if medico else '' }}</span>
+    </div>
+    <div class="firma">
+      <div class="linea"></div>
+      <span>EU saliente: {{ eu.nombre if eu else '' }}</span>
+    </div>
+    <div class="firma">
+      <div class="linea"></div>
+      <span>Médico entrante</span>
+    </div>
+    <div class="firma">
+      <div class="linea"></div>
+      <span>EU entrante</span>
+    </div>
+  </footer>
+</article>
+
+{% endblock %}

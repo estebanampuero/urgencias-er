@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Editar paciente{% endblock %}
+{% block content %}
+<h2>Editar paciente</h2>
+
+<form method="post" class="form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <fieldset>
+    <legend>Identificación</legend>
+    <div class="grid-2">
+      <div class="form-row"><label>Nombre *</label><input type="text" name="nombre" value="{{ p.nombre }}" required></div>
+      <div class="form-row"><label>RUT</label><input type="text" name="rut" value="{{ p.rut or '' }}"></div>
+      <div class="form-row"><label>Edad</label><input type="number" name="edad" value="{{ p.edad or '' }}"></div>
+      <div class="form-row">
+        <label>Sexo</label>
+        <select name="sexo">
+          <option value="" {% if not p.sexo %}selected{% endif %}>—</option>
+          <option value="M" {% if p.sexo=='M' %}selected{% endif %}>M</option>
+          <option value="F" {% if p.sexo=='F' %}selected{% endif %}>F</option>
+          <option value="O" {% if p.sexo=='O' %}selected{% endif %}>Otro</option>
+        </select>
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>ESI y Box</legend>
+    <div class="grid-2">
+      <div class="form-row">
+        <label>Categoría ESI *</label>
+        <select name="categoria_esi" required>
+          {% for c in ['C1','C2','C3','C4','C5'] %}
+            <option value="{{ c }}" {% if p.categoria_esi==c %}selected{% endif %}>{{ c }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-row"><label>Box</label><input type="text" name="box" value="{{ p.box or '' }}"></div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Motivo y antecedentes</legend>
+    <div class="form-row"><label>Motivo</label><textarea name="motivo_consulta" rows="2" data-stt="motivo">{{ p.motivo_consulta or '' }}</textarea></div>
+    <div class="grid-2">
+      <div class="form-row"><label>Antecedentes</label><textarea name="antecedentes" rows="3" data-stt="antecedentes">{{ p.antecedentes or '' }}</textarea></div>
+      <div class="form-row"><label>Alergias</label><textarea name="alergias" rows="3" data-stt="alergias">{{ p.alergias or '' }}</textarea></div>
+    </div>
+  </fieldset>
+
+  <div class="form-actions">
+    <a href="{{ url_for('paciente_detalle', pid=p.id) }}" class="btn">Cancelar</a>
+    <button class="btn btn-primary">Guardar</button>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,16 @@
+Flask==3.0.3
+Werkzeug==3.0.4
+Flask-WTF==1.2.1
+waitress==3.0.0
+weasyprint==62.3
+
+# === STT local (opcional pero recomendado) ===
+# faster-whisper trae ctranslate2 + tokenizers. ~100 MB de wheels.
+# El modelo `small` (~244 MB) se descarga la primera vez que se usa.
+faster-whisper>=1.1.0,<2.0
+requests>=2.31
+
+# === LLM (opcional, para resumen entrega + triage complementario) ===
+# Setear ANTHROPIC_API_KEY como env var.
+anthropic>=0.40.0,<1.0
+
