@@ -1,0 +1,38 @@
+# Datos locales
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+.pytest_cache/
+
+# OS y editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Python portable Windows
+python/
+
+# Git
+.git/
+.gitignore
+
+# Logs
+*.log
+
+# Test artifacts
+.coverage
+htmlcov/
+
+# Documentación específica de dev
+claude.md

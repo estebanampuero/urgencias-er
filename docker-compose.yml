@@ -1,0 +1,40 @@
+# =====================================================================
+# docker-compose.yml — Test local del deploy.
+# En EasyPanel se replica esta configuración (servicio + volumen + env).
+# =====================================================================
+services:
+  urgencias:
+    container_name: urgencias-er
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: urgencias-er:latest
+    restart: unless-stopped
+    ports:
+      - "5050:5050"
+    environment:
+      # SECRET_KEY se genera al primer arranque si no se setea.
+      # En producción SIEMPRE setear. Generar con:
+      # python -c "import secrets; print(secrets.token_hex(32))"
+      - SECRET_KEY=${SECRET_KEY:-}
+      - PORT=5050
+      - THREADS=${THREADS:-8}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - LLM_MODEL=${LLM_MODEL:-claude-haiku-4-5-20251001}
+      - BACKUP_KEEP=${BACKUP_KEEP:-30}
+      - SEED_DEMO=${SEED_DEMO:-false}
+    volumes:
+      # ÚNICA carpeta persistente. Mapear como volumen en EasyPanel.
+      # Contiene: urgencias.db (SQLite), whisper-cache/ (modelo STT),
+      # backups/ (.db rotados), .secret_key
+      - urgencias_data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:5050/healthz"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+
+volumes:
+  urgencias_data:
+    driver: local
