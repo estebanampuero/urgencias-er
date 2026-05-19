@@ -42,7 +42,10 @@ En la pestaña **Environment** del servicio, agregá:
 | `ANTHROPIC_API_KEY` | `sk-ant-...` | opcional, para LLM features |
 | `LLM_MODEL` | `claude-haiku-4-5-20251001` | opcional |
 | `SEED_DEMO` | `true` | **solo en primer arranque**; después cambiar a `false` o vaciar |
+| `PRELOAD_STT` | `true` | precarga modelo Whisper al arrancar (recomendado) |
 | `BACKUP_KEEP` | `30` | cantidad de backups rotados |
+| `LOG_JSON` | `true` | logs estructurados (recomendado para EasyPanel) |
+| `LOG_LEVEL` | `INFO` | nivel de logging |
 
 > Tras el primer deploy con `SEED_DEMO=true`, cambialo a `false` y redeploya
 > para que no intente sembrar otra vez (el código verifica si la BD ya tiene
@@ -88,6 +91,12 @@ EasyPanel → **Resources**:
 
 - **Memory**: 1024 MB mínimo (Whisper small carga ~500 MB en RAM)
 - **CPU**: 1 vCPU mínimo
+- **Disk del volumen**: ~500 MB (244 MB modelo Whisper + BD + backups)
+
+> Con `PRELOAD_STT=true`, el contenedor arranca, baja el modelo a
+> `data/whisper-cache/` (244 MB, una sola vez en la vida del volumen), lo
+> carga en RAM y queda listo. Re-deploys siguientes son instantáneos
+> porque el modelo ya está en el volumen.
 
 Para hospitales con tráfico real, subir a 2 GB / 2 vCPU.
 
