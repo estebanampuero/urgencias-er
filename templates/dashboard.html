@@ -53,7 +53,8 @@
   </thead>
   <tbody>
   {% for p in pacientes %}
-    <tr class="row-esi-{{ p.categoria_esi }} row-{{ p.estado }}{% if p.recibido %} row-recibido{% endif %}">
+    <tr class="row-esi-{{ p.categoria_esi }} row-{{ p.estado }}{% if p.recibido %} row-recibido{% endif %} row-clickable"
+        data-href="{{ url_for('paciente_detalle', pid=p.id) }}">
       <td><span class="esi esi-{{ p.categoria_esi }}">{{ p.categoria_esi }}</span></td>
       <td>{{ p.box or '-' }}</td>
       <td>

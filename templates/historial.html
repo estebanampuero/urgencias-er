@@ -16,7 +16,7 @@
   </thead>
   <tbody>
   {% for t in turnos %}
-    <tr>
+    <tr class="row-clickable" data-href="{{ url_for('entrega_turno', turno_id=t.id) }}">
       <td>{{ t.fecha_cierre|fmt_fecha }}</td>
       <td><span class="badge badge-{{ t.tipo }}">{{ t.tipo|upper }}</span></td>
       <td>{{ t.medico_nombre or '—' }}</td>

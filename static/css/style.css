@@ -560,6 +560,19 @@ details[open] > summary { background: rgba(0,122,255,.22); }
 .firma { text-align: center; font-size: .85em; color: var(--muted); }
 .firma .linea { border-top: 1px solid var(--ink); margin-bottom: 6px; height: 36px; }
 
+/* ===== Filas clickables (mejor UX móvil) ===== */
+.row-clickable {
+  cursor: pointer;
+  -webkit-tap-highlight-color: rgba(0, 122, 255, .15);
+  transition: background var(--t-fast) var(--ease);
+}
+.row-clickable td { user-select: none; }
+.row-clickable:hover td,
+.row-clickable:focus td,
+.row-clickable.row-pressed td { background: rgba(0, 122, 255, .08); }
+.row-clickable:focus { outline: none; }
+.row-clickable:focus td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+
 /* ===== Badge en menú (alertas) ===== */
 .menu-badge {
   display: inline-block;

@@ -56,7 +56,45 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Sugerencia ESI en vivo en form de paciente
   initEsiSuggest();
+
+  // Filas de tabla clickables (mejor UX en móvil)
+  initRowClickable();
 });
+
+
+// ============ Filas <tr> con data-href: tap en toda la fila ============
+function initRowClickable() {
+  document.querySelectorAll("tr.row-clickable[data-href]").forEach(tr => {
+    tr.style.cursor = "pointer";
+
+    const navigate = () => {
+      window.location.href = tr.dataset.href;
+    };
+
+    tr.addEventListener("click", e => {
+      // No interferir con links/botones/forms dentro de la fila
+      if (e.target.closest("a, button, form, select, input, label")) return;
+      navigate();
+    });
+
+    // En móvil, dar feedback táctil + soportar touch directo
+    tr.addEventListener("touchstart", () => tr.classList.add("row-pressed"),
+      { passive: true });
+    const release = () => tr.classList.remove("row-pressed");
+    tr.addEventListener("touchend", release, { passive: true });
+    tr.addEventListener("touchcancel", release, { passive: true });
+
+    // Accesibilidad: Enter o Space en foco navega
+    tr.setAttribute("tabindex", "0");
+    tr.setAttribute("role", "link");
+    tr.addEventListener("keydown", e => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        navigate();
+      }
+    });
+  });
+}
 
 
 // ============ Sugerencia ESI en vivo (form de paciente) ============
