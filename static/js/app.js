@@ -59,7 +59,56 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Filas de tabla clickables (mejor UX en móvil)
   initRowClickable();
+
+  // Beep en alertas críticas que el usuario no haya "visto" en esta sesión
+  initAlertaSound();
 });
+
+
+// ============ Beep en alertas críticas ============
+// Estrategia: al cargar una página con .alerta-critico visible, comparar IDs
+// contra los ya vistos en sessionStorage. Si hay ids nuevos, generar un beep
+// breve via Web Audio (sin assets). Si los flashes contienen "alerta(s)
+// generada(s)" (mensaje server-rendered tras POST de SV), beep también.
+function initAlertaSound() {
+  const criticos = document.querySelectorAll(".alerta-critico");
+  const ids = Array.from(criticos)
+    .map(el => el.dataset.alertaId)
+    .filter(Boolean);
+  let key = "alertas_vistas:" + location.pathname;
+  let vistas = [];
+  try { vistas = JSON.parse(sessionStorage.getItem(key) || "[]"); } catch {}
+  const nuevos = ids.filter(id => !vistas.includes(id));
+
+  // También disparar si una flash dice "alerta(s) generada(s)" (flujo POST SV)
+  const flashAlerta = Array.from(document.querySelectorAll(".flash"))
+    .some(f => /alerta\(s\) generada\(s\)/i.test(f.textContent || ""));
+
+  if (nuevos.length || flashAlerta) {
+    beepAlerta();
+    try { sessionStorage.setItem(key, JSON.stringify(ids)); } catch {}
+  }
+}
+
+function beepAlerta() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = "sine";
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.45);
+    osc.start();
+    setTimeout(() => { osc.frequency.value = 1100; }, 180);
+    setTimeout(() => { osc.stop(); ctx.close(); }, 500);
+  } catch {}
+}
 
 
 // ============ Filas <tr> con data-href: tap en toda la fila ============
@@ -294,7 +343,11 @@ function setupMicForField(el) {
       const data = await r.json();
       if (data.texto) {
         insertAtCursor(el, data.texto);
-        toast("Transcripción agregada.", "ok");
+        // Marca visual breve para que el usuario distinga texto transcrito
+        // antes de guardar.
+        el.classList.add("stt-just-inserted");
+        setTimeout(() => el.classList.remove("stt-just-inserted"), 2500);
+        toast("⚠ Texto transcrito por IA. Revisar antes de guardar.", "warn");
       } else if (data.error) {
         toast("STT: " + data.error, "error");
       }

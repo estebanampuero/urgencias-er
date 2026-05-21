@@ -190,6 +190,67 @@ def turno_actual_por_hora():
     return "dia" if dtime(8, 0) <= h < dtime(20, 0) else "noche"
 
 
+# Rangos fisiológicos para signos vitales. Valores fuera de estos rangos casi
+# siempre son errores de input (negativos, ceros por sensor, typos como temp=999).
+# Si un caso real necesita ir más allá, ampliar acá explícitamente.
+_SV_RANGOS = {
+    "fc":      (20, 250),     # lpm — paro a taquicardia extrema
+    "fr":      (4, 60),       # rpm — apnea a taquipnea severa
+    "temp":    (28.0, 43.0),  # °C — hipotermia severa a hiperpirexia
+    "sato2":   (30, 100),     # %
+    "glasgow": (3, 15),       # escala definida estricta
+    "hgt":     (10, 1000),    # mg/dL — hipoglicemia severa a CAD extrema
+    "eva":     (0, 10),
+}
+
+
+def _clamp_sv(raw, campo, parser):
+    """
+    Convierte raw → tipo y rechaza si está fuera de rango fisiológico.
+    Retorna None si el input es vacío, inválido, o fuera de rango.
+    Llamar para fc/fr/sato2/glasgow/hgt/eva (int) y temp (float).
+    """
+    if raw is None or raw == "":
+        return None
+    try:
+        v = parser(raw)
+    except (TypeError, ValueError):
+        return None
+    lo, hi = _SV_RANGOS[campo]
+    if v < lo or v > hi:
+        return None
+    return v
+
+
+def _clamp_pa(raw):
+    """
+    Valida PA "sistólica/diastólica" (string). Retorna el string normalizado
+    si ambos números están en rango, o None si no parsea o está fuera de rango.
+    Acepta también solo sistólica.
+    """
+    if not raw:
+        return None
+    s = str(raw).strip()
+    if not s:
+        return None
+    partes = s.split("/")
+    try:
+        sis = int("".join(c for c in partes[0] if c.isdigit()))
+    except ValueError:
+        return None
+    if not (30 <= sis <= 260):
+        return None
+    if len(partes) >= 2 and partes[1].strip():
+        try:
+            dia = int("".join(c for c in partes[1] if c.isdigit()))
+        except ValueError:
+            return None
+        if not (10 <= dia <= 200):
+            return None
+        return f"{sis}/{dia}"
+    return str(sis)
+
+
 _ip_local_cache: Optional[str] = None
 
 
@@ -590,17 +651,32 @@ def paciente_nuevo():
 
     if request.method == "POST":
         f = request.form
-        # Calcular sugerencia ESI con los datos enviados
+        # Sanitizar SV antes de pasar al triage y persistir.
+        pa = _clamp_pa(f.get("pa"))
+        fc = _clamp_sv(f.get("fc"), "fc", int)
+        fr = _clamp_sv(f.get("fr"), "fr", int)
+        temp = _clamp_sv(f.get("temp"), "temp", float)
+        sato2 = _clamp_sv(f.get("sato2"), "sato2", int)
+        glasgow = _clamp_sv(f.get("glasgow"), "glasgow", int)
+        hgt = _clamp_sv(f.get("hgt"), "hgt", int)
+        edad = None
+        if f.get("edad"):
+            try:
+                e = int(f["edad"])
+                edad = e if 0 <= e <= 130 else None
+            except ValueError:
+                edad = None
+        # Calcular sugerencia ESI con los datos saneados
         sug_cat, sug_razones = triage.sugerir_categoria({
             "motivo_consulta": f.get("motivo_consulta", ""),
             "antecedentes":    f.get("antecedentes", ""),
-            "edad":            int(f["edad"]) if f.get("edad") else None,
-            "pa":              f.get("pa") or "",
-            "fc":              int(f["fc"]) if f.get("fc") else None,
-            "fr":              int(f["fr"]) if f.get("fr") else None,
-            "temp":            float(f["temp"]) if f.get("temp") else None,
-            "sato2":           int(f["sato2"]) if f.get("sato2") else None,
-            "glasgow":         int(f["glasgow"]) if f.get("glasgow") else None,
+            "edad":            edad,
+            "pa":              pa or "",
+            "fc":              fc,
+            "fr":              fr,
+            "temp":            temp,
+            "sato2":           sato2,
+            "glasgow":         glasgow,
         })
         conn = get_conn()
         cur = conn.execute(
@@ -614,20 +690,20 @@ def paciente_nuevo():
                 g.turno_activo["id"],
                 f["nombre"].strip(),
                 f.get("rut", "").strip() or None,
-                int(f["edad"]) if f.get("edad") else None,
+                edad,
                 f.get("sexo") or None,
                 f["categoria_esi"],
                 f.get("box", "").strip() or None,
                 f.get("motivo_consulta", "").strip() or None,
                 f.get("antecedentes", "").strip() or None,
                 f.get("alergias", "").strip() or None,
-                f.get("pa", "").strip() or None,
-                int(f["fc"]) if f.get("fc") else None,
-                int(f["fr"]) if f.get("fr") else None,
-                float(f["temp"]) if f.get("temp") else None,
-                int(f["sato2"]) if f.get("sato2") else None,
-                int(f["glasgow"]) if f.get("glasgow") else None,
-                int(f["hgt"]) if f.get("hgt") else None,
+                pa,
+                fc,
+                fr,
+                temp,
+                sato2,
+                glasgow,
+                hgt,
                 ahora_iso(),
                 g.usuario["id"],
                 sug_cat,
@@ -636,23 +712,12 @@ def paciente_nuevo():
         )
         pid = cur.lastrowid
         # registrar primera toma de SV
-        if any(f.get(k) for k in ("pa", "fc", "fr", "temp", "sato2", "glasgow", "hgt")):
+        if any(v is not None for v in (pa, fc, fr, temp, sato2, glasgow, hgt)):
             conn.execute(
                 """INSERT INTO signos_vitales
                    (paciente_id, pa, fc, fr, temp, sato2, glasgow, hgt, autor_id, creado_en)
                    VALUES (?,?,?,?,?,?,?,?,?,?)""",
-                (
-                    pid,
-                    f.get("pa") or None,
-                    int(f["fc"]) if f.get("fc") else None,
-                    int(f["fr"]) if f.get("fr") else None,
-                    float(f["temp"]) if f.get("temp") else None,
-                    int(f["sato2"]) if f.get("sato2") else None,
-                    int(f["glasgow"]) if f.get("glasgow") else None,
-                    int(f["hgt"]) if f.get("hgt") else None,
-                    g.usuario["id"],
-                    ahora_iso(),
-                ),
+                (pid, pa, fc, fr, temp, sato2, glasgow, hgt, g.usuario["id"], ahora_iso()),
             )
         conn.commit()
         conn.close()
@@ -816,23 +881,27 @@ def signos_agregar(pid):
     f = request.form
     conn = get_conn()
     autorizado_o_404(conn, pid)
+    # Sanitizar y validar contra rangos fisiológicos antes de persistir.
+    pa = _clamp_pa(f.get("pa"))
+    fc = _clamp_sv(f.get("fc"), "fc", int)
+    fr = _clamp_sv(f.get("fr"), "fr", int)
+    temp = _clamp_sv(f.get("temp"), "temp", float)
+    sato2 = _clamp_sv(f.get("sato2"), "sato2", int)
+    glasgow = _clamp_sv(f.get("glasgow"), "glasgow", int)
+    hgt = _clamp_sv(f.get("hgt"), "hgt", int)
+    eva = _clamp_sv(f.get("eva"), "eva", int)
+    # Si el usuario mandó algo pero todo se filtró, avisar.
+    enviados = [k for k in ("pa", "fc", "fr", "temp", "sato2", "glasgow", "hgt", "eva") if f.get(k)]
+    aceptados = [v for v in (pa, fc, fr, temp, sato2, glasgow, hgt, eva) if v is not None]
+    if enviados and not aceptados:
+        conn.close()
+        flash("Valores fuera de rango fisiológico. Revisar y reintentar.", "error")
+        return redirect(url_for("paciente_detalle", pid=pid))
     conn.execute(
         """INSERT INTO signos_vitales
            (paciente_id, pa, fc, fr, temp, sato2, glasgow, hgt, eva, autor_id, creado_en)
            VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-        (
-            pid,
-            f.get("pa") or None,
-            int(f["fc"]) if f.get("fc") else None,
-            int(f["fr"]) if f.get("fr") else None,
-            float(f["temp"]) if f.get("temp") else None,
-            int(f["sato2"]) if f.get("sato2") else None,
-            int(f["glasgow"]) if f.get("glasgow") else None,
-            int(f["hgt"]) if f.get("hgt") else None,
-            int(f["eva"]) if f.get("eva") else None,
-            g.usuario["id"],
-            ahora_iso(),
-        ),
+        (pid, pa, fc, fr, temp, sato2, glasgow, hgt, eva, g.usuario["id"], ahora_iso()),
     )
     # también actualizar SV "actuales" en paciente
     conn.execute(
@@ -840,16 +909,7 @@ def signos_agregar(pid):
                                 temp=COALESCE(?,temp), sato2=COALESCE(?,sato2),
                                 glasgow=COALESCE(?,glasgow), hgt=COALESCE(?,hgt)
            WHERE id=?""",
-        (
-            f.get("pa") or None,
-            int(f["fc"]) if f.get("fc") else None,
-            int(f["fr"]) if f.get("fr") else None,
-            float(f["temp"]) if f.get("temp") else None,
-            int(f["sato2"]) if f.get("sato2") else None,
-            int(f["glasgow"]) if f.get("glasgow") else None,
-            int(f["hgt"]) if f.get("hgt") else None,
-            pid,
-        ),
+        (pa, fc, fr, temp, sato2, glasgow, hgt, pid),
     )
     # Evaluar alertas tras la nueva toma de SV
     try:
@@ -897,12 +957,19 @@ def nota_agregar(pid):
         return redirect(url_for("paciente_detalle", pid=pid))
     conn = get_conn()
     autorizado_o_404(conn, pid)
-    conn.execute(
+    cur = conn.execute(
         "INSERT INTO notas (paciente_id, contenido, autor_id, creado_en) VALUES (?,?,?,?)",
         (pid, contenido, g.usuario["id"], ahora_iso()),
     )
+    nota_id = cur.lastrowid
     conn.commit()
     conn.close()
+    # Indexar incrementalmente para que la nota aparezca en /buscar sin requerir
+    # un reindex manual. Falla silenciosamente (la nota ya está persistida).
+    try:
+        _busqueda_mod.index_nota(nota_id, contenido)
+    except Exception as e:
+        app.logger.warning(f"index nota falló: {e}")
     return redirect(url_for("paciente_detalle", pid=pid))
 
 
@@ -1274,26 +1341,24 @@ def api_admin_status():
 def api_sugerir_esi():
     """Devuelve la categoría ESI sugerida + razones para los datos enviados."""
     data = request.get_json(silent=True) or request.form
-    def _int(k):
-        v = data.get(k)
-        try: return int(v) if v not in (None, "", "null") else None
-        except (TypeError, ValueError): return None
-    def _float(k):
-        v = data.get(k)
-        try: return float(v) if v not in (None, "", "null") else None
-        except (TypeError, ValueError): return None
-
     payload = {
         "motivo_consulta": data.get("motivo_consulta") or "",
         "antecedentes":    data.get("antecedentes") or "",
-        "edad":            _int("edad"),
-        "pa":              data.get("pa") or "",
-        "fc":              _int("fc"),
-        "fr":              _int("fr"),
-        "temp":            _float("temp"),
-        "sato2":           _int("sato2"),
-        "glasgow":         _int("glasgow"),
+        "edad":            None,
+        "pa":              _clamp_pa(data.get("pa")) or "",
+        "fc":              _clamp_sv(data.get("fc"), "fc", int),
+        "fr":              _clamp_sv(data.get("fr"), "fr", int),
+        "temp":            _clamp_sv(data.get("temp"), "temp", float),
+        "sato2":           _clamp_sv(data.get("sato2"), "sato2", int),
+        "glasgow":         _clamp_sv(data.get("glasgow"), "glasgow", int),
     }
+    # edad fuera de rangos SV (puede ser 0-130)
+    if data.get("edad") not in (None, "", "null"):
+        try:
+            e = int(data["edad"])
+            payload["edad"] = e if 0 <= e <= 130 else None
+        except (TypeError, ValueError):
+            payload["edad"] = None
     cat, razones = triage.sugerir_categoria(payload)
     return jsonify({
         "categoria": cat,
@@ -1507,12 +1572,24 @@ def fhir_post_observation():
         conn.close()
         return jsonify({"error": str(e)}), 400
 
+    # Sanitizar valores recibidos del dispositivo: el FHIR parser puede aceptar
+    # cualquier número; acá enforcemos rangos fisiológicos.
+    pa_v = _clamp_pa(sv.get("pa"))
+    fc_v = _clamp_sv(sv.get("fc"), "fc", int)
+    fr_v = _clamp_sv(sv.get("fr"), "fr", int)
+    temp_v = _clamp_sv(sv.get("temp"), "temp", float)
+    sato2_v = _clamp_sv(sv.get("sato2"), "sato2", int)
+    glasgow_v = _clamp_sv(sv.get("glasgow"), "glasgow", int)
+    hgt_v = _clamp_sv(sv.get("hgt"), "hgt", int)
+    if all(v is None for v in (pa_v, fc_v, fr_v, temp_v, sato2_v, glasgow_v, hgt_v)):
+        conn.close()
+        return jsonify({"error": "ningún valor SV válido en rango fisiológico"}), 400
+
     conn.execute(
         """INSERT INTO signos_vitales
            (paciente_id, pa, fc, fr, temp, sato2, glasgow, hgt, autor_id, creado_en)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)""",
-        (pid, sv.get("pa"), sv.get("fc"), sv.get("fr"), sv.get("temp"),
-         sv.get("sato2"), sv.get("glasgow"), sv.get("hgt"), ahora_iso()),
+        (pid, pa_v, fc_v, fr_v, temp_v, sato2_v, glasgow_v, hgt_v, ahora_iso()),
     )
     # actualizar SV actuales del paciente
     conn.execute(
@@ -1520,8 +1597,7 @@ def fhir_post_observation():
                                 temp=COALESCE(?,temp), sato2=COALESCE(?,sato2),
                                 glasgow=COALESCE(?,glasgow), hgt=COALESCE(?,hgt)
            WHERE id=?""",
-        (sv.get("pa"), sv.get("fc"), sv.get("fr"), sv.get("temp"),
-         sv.get("sato2"), sv.get("glasgow"), sv.get("hgt"), pid),
+        (pa_v, fc_v, fr_v, temp_v, sato2_v, glasgow_v, hgt_v, pid),
     )
     # evaluar alertas
     try:

@@ -1002,4 +1002,69 @@ details[open] > summary { background: rgba(0,122,255,.22); }
   .page-break { page-break-before: always; }
   a { color: inherit; text-decoration: none; }
   .paciente-entrega { break-inside: avoid; background: #fff; }
+  .pac-header { position: static; backdrop-filter: none; }
+}
+
+/* ===== Sticky header en ficha de paciente =====
+   Al scrollear notas/SV largos, conservar visible ESI + nombre del paciente
+   para evitar registrar info en el paciente equivocado. */
+.pac-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: var(--bg, rgba(255, 255, 255, 0.92));
+  padding: 10px 0 8px;
+  margin-top: -8px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* ===== Disclaimer visual para outputs generados por IA ===== */
+.ai-disclaimer {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 184, 0, 0.18);
+  color: #8a5b00;
+  font-size: 0.78em;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border: 1px solid rgba(255, 184, 0, 0.4);
+}
+.ai-disclaimer::before { content: "✨ "; }
+.ai-output {
+  position: relative;
+  border-left: 3px solid #ffb800;
+  padding-left: 12px;
+  margin: 8px 0;
+}
+.ai-output-foot {
+  font-size: 0.78em;
+  color: #8a5b00;
+  margin-top: 6px;
+  font-style: italic;
+}
+
+/* ===== Alerta crítica: refuerzo de visibilidad ===== */
+.alerta-critico {
+  outline: 2px solid rgba(255, 59, 48, 0.4);
+  outline-offset: -2px;
+}
+
+/* ===== Marca visual breve tras transcripción STT =====
+   Resalta el input/textarea que recibió texto generado por IA, para que el
+   usuario lo revise antes de guardar. */
+.stt-just-inserted {
+  box-shadow: 0 0 0 2px rgba(255, 184, 0, 0.55), 0 0 14px rgba(255, 184, 0, 0.2);
+  transition: box-shadow 0.5s ease-out;
+}
+
+/* Toast variant: warn (amarillo) — para mensajes de "revisar IA" */
+.flash-warn {
+  background: rgba(255, 184, 0, 0.18);
+  color: #8a5b00;
+  border-left: 4px solid #ffb800;
 }

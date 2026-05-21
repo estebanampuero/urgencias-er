@@ -156,6 +156,8 @@ def resumen_entrega_turno(datos: dict) -> dict:
         usage = msg.usage
         return {
             "resumen": texto,
+            "_ai_generated": True,
+            "_disclaimer": "Texto generado por IA (Claude Haiku). Revisar antes de tomar decisiones clínicas.",
             "tokens_in": getattr(usage, "input_tokens", 0),
             "tokens_out": getattr(usage, "output_tokens", 0),
             "cache_creation": getattr(usage, "cache_creation_input_tokens", 0),
@@ -215,10 +217,25 @@ def triage_complementario(datos_paciente: dict, categoria_reglas: str, razones_r
             if texto.startswith("json"): texto = texto[4:].strip()
         try:
             data = json.loads(texto)
-            data["tokens_in"] = msg.usage.input_tokens
-            data["tokens_out"] = msg.usage.output_tokens
-            return data
         except json.JSONDecodeError:
             return {"error": "LLM devolvió JSON inválido", "raw": texto[:200]}
+        # Validar que la categoría sugerida esté en el dominio clínico (C1-C5).
+        # Sin esto, una alucinación tipo "C0" o "Categoría 3" llega al frontend
+        # como si fuera una sugerencia médica real.
+        cat = data.get("categoria_sugerida")
+        if cat not in ("C1", "C2", "C3", "C4", "C5"):
+            return {
+                "error": "LLM devolvió categoría fuera del dominio ESI",
+                "raw_categoria": cat,
+            }
+        if not isinstance(data.get("acuerdo"), bool):
+            data["acuerdo"] = (cat == categoria_reglas)
+        data["_ai_generated"] = True
+        data["_disclaimer"] = (
+            "Segunda opinión generada por IA. La decisión final es del equipo clínico."
+        )
+        data["tokens_in"] = msg.usage.input_tokens
+        data["tokens_out"] = msg.usage.output_tokens
+        return data
     except Exception as e:
         return {"error": f"LLM falló: {e}"}

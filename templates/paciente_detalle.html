@@ -26,7 +26,7 @@
 <div class="alertas-panel">
   <h3 class="alertas-title">⚠ Alertas activas ({{ alertas_abiertas|length }})</h3>
   {% for a in alertas_abiertas %}
-    <div class="alerta alerta-{{ a.severidad }}">
+    <div class="alerta alerta-{{ a.severidad }}" data-alerta-id="{{ a.id }}" role="alert" aria-live="polite">
       <div class="alerta-body">
         <span class="alerta-tipo">{{ a.tipo|replace('_',' ') }}</span>
         <span class="alerta-msg">{{ a.mensaje }}</span>
@@ -46,6 +46,7 @@
   <div class="esi-suggest-banner esi-suggest-diff">
     <div class="esi-suggest-head">
       <span class="esi-suggest-label">⓵ Sugerencia del sistema</span>
+      <span class="ai-disclaimer" title="Categorización algorítmica de apoyo — la decisión clínica es del equipo">Apoyo · revisar antes de aceptar</span>
       <span>Categoría sugerida:
         <span class="esi esi-{{ p.esi_sugerido }}">{{ p.esi_sugerido }}</span>
         <span class="muted small">(actual: <span class="esi esi-{{ p.categoria_esi }}">{{ p.categoria_esi }}</span>)</span>

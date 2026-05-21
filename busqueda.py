@@ -111,6 +111,32 @@ def rebuild_index() -> dict:
     return {"ok": True, "n": len(notas), "vocab": len(idf)}
 
 
+def index_nota(nota_id: int, contenido: str) -> dict:
+    """
+    Indexa una nota nueva incrementalmente reutilizando el IDF ya calculado.
+    Si no hay índice, llama a rebuild_index() (cold start).
+
+    El IDF se mantiene fijo entre rebuilds; con el tiempo pierde precisión para
+    términos nuevos. Llamar a rebuild_index() periódicamente para refrescar.
+    """
+    conn = get_conn()
+    _ensure_index_table(conn)
+    idf_rows = conn.execute("SELECT termino, idf FROM busqueda_idf").fetchall()
+    if not idf_rows:
+        conn.close()
+        return rebuild_index()
+    idf = {r["termino"]: r["idf"] for r in idf_rows}
+    toks = _tokenize(contenido)
+    v = _vector(_tf(toks), idf)
+    conn.execute(
+        "INSERT OR REPLACE INTO notas_idx (nota_id, vector, tokens) VALUES (?, ?, ?)",
+        (nota_id, json.dumps(v), json.dumps(toks)),
+    )
+    conn.commit()
+    conn.close()
+    return {"ok": True, "n": 1, "incremental": True}
+
+
 def buscar(query: str, limit: int = 20) -> list[dict]:
     """Búsqueda semántica de notas por similitud coseno TF-IDF."""
     conn = get_conn()

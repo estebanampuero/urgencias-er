@@ -14,7 +14,7 @@
   </div>
 {% else %}
   {% for a in alertas %}
-  <div class="alerta alerta-{{ a.severidad }}">
+  <div class="alerta alerta-{{ a.severidad }}" data-alerta-id="{{ a.id }}" role="alert" aria-live="polite">
     <div class="alerta-body">
       <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
         <span class="esi esi-{{ a.categoria_esi }}">{{ a.categoria_esi }}</span>
