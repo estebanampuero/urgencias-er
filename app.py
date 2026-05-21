@@ -652,13 +652,21 @@ def paciente_nuevo():
     if request.method == "POST":
         f = request.form
         # Sanitizar SV antes de pasar al triage y persistir.
-        pa = _clamp_pa(f.get("pa"))
-        fc = _clamp_sv(f.get("fc"), "fc", int)
-        fr = _clamp_sv(f.get("fr"), "fr", int)
-        temp = _clamp_sv(f.get("temp"), "temp", float)
-        sato2 = _clamp_sv(f.get("sato2"), "sato2", int)
-        glasgow = _clamp_sv(f.get("glasgow"), "glasgow", int)
-        hgt = _clamp_sv(f.get("hgt"), "hgt", int)
+        campos_nuevo = [
+            ("pa",      _clamp_pa(f.get("pa")),                    "PA"),
+            ("fc",      _clamp_sv(f.get("fc"),      "fc",   int),  "FC"),
+            ("fr",      _clamp_sv(f.get("fr"),      "fr",   int),  "FR"),
+            ("temp",    _clamp_sv(f.get("temp"),    "temp", float),"T°"),
+            ("sato2",   _clamp_sv(f.get("sato2"),   "sato2",int),  "SatO₂"),
+            ("glasgow", _clamp_sv(f.get("glasgow"), "glasgow",int),"Glasgow"),
+            ("hgt",     _clamp_sv(f.get("hgt"),     "hgt",  int),  "HGT"),
+        ]
+        pa, fc, fr, temp, sato2, glasgow, hgt = (c[1] for c in campos_nuevo)
+        rechazados_sv = [(k, lbl, f.get(k)) for k, v, lbl in campos_nuevo
+                         if f.get(k) not in (None, "") and v is None]
+        if rechazados_sv:
+            detalle = ", ".join(f"{lbl}={raw}" for _, lbl, raw in rechazados_sv)
+            flash(f"⚠ SV fuera de rango ignorados: {detalle}. Paciente se registra sin esos valores.", "warn")
         edad = None
         if f.get("edad"):
             try:
@@ -882,21 +890,32 @@ def signos_agregar(pid):
     conn = get_conn()
     autorizado_o_404(conn, pid)
     # Sanitizar y validar contra rangos fisiológicos antes de persistir.
-    pa = _clamp_pa(f.get("pa"))
-    fc = _clamp_sv(f.get("fc"), "fc", int)
-    fr = _clamp_sv(f.get("fr"), "fr", int)
-    temp = _clamp_sv(f.get("temp"), "temp", float)
-    sato2 = _clamp_sv(f.get("sato2"), "sato2", int)
-    glasgow = _clamp_sv(f.get("glasgow"), "glasgow", int)
-    hgt = _clamp_sv(f.get("hgt"), "hgt", int)
-    eva = _clamp_sv(f.get("eva"), "eva", int)
-    # Si el usuario mandó algo pero todo se filtró, avisar.
-    enviados = [k for k in ("pa", "fc", "fr", "temp", "sato2", "glasgow", "hgt", "eva") if f.get(k)]
-    aceptados = [v for v in (pa, fc, fr, temp, sato2, glasgow, hgt, eva) if v is not None]
-    if enviados and not aceptados:
+    campos = [
+        ("pa",      _clamp_pa(f.get("pa")),                    "PA"),
+        ("fc",      _clamp_sv(f.get("fc"),      "fc",   int),  "FC"),
+        ("fr",      _clamp_sv(f.get("fr"),      "fr",   int),  "FR"),
+        ("temp",    _clamp_sv(f.get("temp"),    "temp", float),"T°"),
+        ("sato2",   _clamp_sv(f.get("sato2"),   "sato2",int),  "SatO₂"),
+        ("glasgow", _clamp_sv(f.get("glasgow"), "glasgow",int),"Glasgow"),
+        ("hgt",     _clamp_sv(f.get("hgt"),     "hgt",  int),  "HGT"),
+        ("eva",     _clamp_sv(f.get("eva"),     "eva",  int),  "EVA"),
+    ]
+    pa, fc, fr, temp, sato2, glasgow, hgt, eva = (c[1] for c in campos)
+    # Detectar campos que el usuario mandó pero que cayeron fuera de rango:
+    # si los descartamos en silencio, el usuario cree que se guardaron.
+    rechazados = [(k, label, f.get(k)) for k, v, label in campos
+                  if f.get(k) not in (None, "") and v is None]
+    aceptados = [v for _, v, _ in campos if v is not None]
+    if rechazados and not aceptados:
+        # Todo fuera de rango → no guardamos nada.
         conn.close()
-        flash("Valores fuera de rango fisiológico. Revisar y reintentar.", "error")
+        detalle = ", ".join(f"{lbl}={raw}" for _, lbl, raw in rechazados)
+        flash(f"⚠ Valores fuera de rango fisiológico: {detalle}. Nada se guardó.", "error")
         return redirect(url_for("paciente_detalle", pid=pid))
+    if rechazados:
+        # Aceptamos los válidos pero avisamos cuáles se descartaron.
+        detalle = ", ".join(f"{lbl}={raw}" for _, lbl, raw in rechazados)
+        flash(f"⚠ Ignorado por estar fuera de rango: {detalle}. Resto guardado.", "warn")
     conn.execute(
         """INSERT INTO signos_vitales
            (paciente_id, pa, fc, fr, temp, sato2, glasgow, hgt, eva, autor_id, creado_en)
